@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, url_for, redirect
 from werkzeug.utils import secure_filename
 import os
 from google.cloud import storage
+from google.cloud import vision
+
 # import google.cloud
 # from google.cloud import storage
 # vars
@@ -35,7 +37,9 @@ def submitted_form():
         email=email,
         site=site,
         comments=comments)
-'''#upload to google function
+'''
+
+#upload to google function
 def upload_blob(file_stream,  destination_blob_name, content_type):
 
     """Uploads a file to the bucket."""
@@ -50,7 +54,11 @@ def upload_blob(file_stream,  destination_blob_name, content_type):
     # blob.upload_from_filename(source_file_name)
     blob.upload_from_string(file_stream, content_type=content_type)
 
+def cloud_vision():
+    #cloud vision newly uploaded file
 
+
+'''
 #from google doc: https://cloud.google.com/python/getting-started/using-cloud-storage
 def upload_image_file(file):
     """
@@ -70,6 +78,7 @@ def upload_image_file(file):
         "Uploaded file %s as %s.", file.filename, public_url)
 
     return public_url
+'''
 
 @app.route('/list')
 def list_blobs_go():
@@ -93,7 +102,6 @@ def list_blobs():
 
 
 
-
 @app.route('/golfcard', methods=['GET', 'POST'])
 def submitted_form_golf():
     name = request.form['name']
@@ -114,7 +122,6 @@ def submitted_form_golf():
         # f.save(os.path.join(app.config['UPLOAD_FOLDER'],fname))
         # return redirect(url_for('submitted_form_golf', fname=fname))
         # all google stuff
-        # upload_blob(bucket_name, source_file_name, destination_blob_name)
         upload_blob(f.read(), fname, f.content_type)
 
     return render_template(
