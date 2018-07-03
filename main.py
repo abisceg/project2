@@ -2,7 +2,11 @@ from flask import Flask, render_template, request, url_for, redirect
 from werkzeug.utils import secure_filename
 import os
 from google.cloud import storage
+# for vision
 from google.cloud import vision
+from PIL import Image, ImageDraw
+import io
+import types
 
 # import google.cloud
 # from google.cloud import storage
