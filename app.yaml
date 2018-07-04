@@ -11,3 +11,7 @@ handlers:
 libraries:
 - name: ssl
   version: latest
+
+
+env_variables:
+  GOOGLE_CLOUD_DISABLE_GRPC: 'true'

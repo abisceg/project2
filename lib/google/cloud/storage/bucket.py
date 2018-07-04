@@ -171,8 +171,7 @@ class Bucket(_PropertyMixin):
         """
         return self._user_project
 
-    def blob(self, blob_name, chunk_size=None,
-             encryption_key=None, kms_key_name=None):
+    def blob(self, blob_name, chunk_size=None, encryption_key=None):
         """Factory constructor for blob object.
 
         .. note::
@@ -184,22 +183,18 @@ class Bucket(_PropertyMixin):
 
         :type chunk_size: int
         :param chunk_size: The size of a chunk of data whenever iterating
-                           (in bytes). This must be a multiple of 256 KB per
-                           the API specification.
+                           (1 MB). This must be a multiple of 256 KB per the
+                           API specification.
 
         :type encryption_key: bytes
         :param encryption_key:
             Optional 32 byte encryption key for customer-supplied encryption.
 
-        :type kms_key_name: str
-        :param kms_key_name:
-            Optional resource name of KMS key used to encrypt blob's content.
-
         :rtype: :class:`google.cloud.storage.blob.Blob`
         :returns: The blob object created.
         """
         return Blob(name=blob_name, bucket=self, chunk_size=chunk_size,
-                    encryption_key=encryption_key, kms_key_name=kms_key_name)
+                    encryption_key=encryption_key)
 
     def notification(self, topic_name,
                      topic_project=None,
@@ -256,7 +251,7 @@ class Bucket(_PropertyMixin):
         except NotFound:
             return False
 
-    def create(self, client=None, project=None):
+    def create(self, client=None):
         """Creates current bucket.
 
         If the bucket already exists, will raise
@@ -270,28 +265,12 @@ class Bucket(_PropertyMixin):
                       ``NoneType``
         :param client: Optional. The client to use.  If not passed, falls back
                        to the ``client`` stored on the current bucket.
-
-        :type project: str
-        :param project: (Optional) the project under which the  bucket is to
-                        be created.  If not passed, uses the project set on
-                        the client.
-        :raises ValueError: if :attr:`user_project` is set.
-        :raises ValueError: if ``project`` is None and client's
-                            :attr:`project` is also None.
         """
         if self.user_project is not None:
             raise ValueError("Cannot create bucket with 'user_project' set.")
 
         client = self._require_client(client)
-
-        if project is None:
-            project = client.project
-
-        if project is None:
-            raise ValueError(
-                "Client project not set:  pass an explicit project.")
-
-        query_params = {'project': project}
+        query_params = {'project': client.project}
         properties = {key: self._properties[key] for key in self._changes}
         properties['name'] = self.name
         api_response = client._connection.api_request(
@@ -659,7 +638,7 @@ class Bucket(_PropertyMixin):
                     raise
 
     def copy_blob(self, blob, destination_bucket, new_name=None,
-                  client=None, preserve_acl=True, source_generation=None):
+                  client=None, preserve_acl=True):
         """Copy the given blob to the given bucket, optionally with a new name.
 
         If :attr:`user_project` is set, bills the API request to that project.
@@ -683,10 +662,6 @@ class Bucket(_PropertyMixin):
         :param preserve_acl: Optional. Copies ACL from old blob to new blob.
                              Default: True.
 
-        :type source_generation: long
-        :param source_generation: Optional. The generation of the blob to be
-                                  copied.
-
         :rtype: :class:`google.cloud.storage.blob.Blob`
         :returns: The new Blob.
         """
@@ -695,9 +670,6 @@ class Bucket(_PropertyMixin):
 
         if self.user_project is not None:
             query_params['userProject'] = self.user_project
-
-        if source_generation is not None:
-            query_params['sourceGeneration'] = source_generation
 
         if new_name is None:
             new_name = blob.name
@@ -709,7 +681,7 @@ class Bucket(_PropertyMixin):
             path=api_path,
             query_params=query_params,
             _target_object=new_blob,
-        )
+            )
 
         if not preserve_acl:
             new_blob.acl.save(acl={}, client=client)
@@ -790,32 +762,6 @@ class Bucket(_PropertyMixin):
         :param entries: A sequence of mappings describing each CORS policy.
         """
         self._patch_property('cors', entries)
-
-    @property
-    def default_kms_key_name(self):
-        """Retrieve / set default KMS encryption key for objects in the bucket.
-
-        See https://cloud.google.com/storage/docs/json_api/v1/buckets
-
-        :setter: Set default KMS encryption key for items in this bucket.
-        :getter: Get default KMS encryption key for items in this bucket.
-
-        :rtype: str
-        :returns: Default KMS encryption key, or ``None`` if not set.
-        """
-        encryption_config = self._properties.get('encryption', {})
-        return encryption_config.get('defaultKmsKeyName')
-
-    @default_kms_key_name.setter
-    def default_kms_key_name(self, value):
-        """Set default KMS encryption key for objects in the bucket.
-
-        :type value: str or None
-        :param value: new KMS key name (None to clear any existing key).
-        """
-        encryption_config = self._properties.get('encryption', {})
-        encryption_config['defaultKmsKeyName'] = value
-        self._patch_property('encryption', encryption_config)
 
     @property
     def labels(self):
@@ -1107,8 +1053,9 @@ class Bucket(_PropertyMixin):
     def requester_pays(self):
         """Does the requester pay for API requests for this bucket?
 
-        See https://cloud.google.com/storage/docs/requester-pays for
-        details.
+        .. note::
+
+           No public docs exist yet for the "requester pays" feature.
 
         :setter: Update whether requester pays for this bucket.
         :getter: Query whether requester pays for this bucket.
@@ -1326,54 +1273,6 @@ class Bucket(_PropertyMixin):
 
             for blob in blobs:
                 blob.acl.all().grant_read()
-                blob.acl.save(client=client)
-
-    def make_private(self, recursive=False, future=False, client=None):
-        """Undo the `make_public` method and make the bucket private.
-
-        If ``recursive=True`` and the bucket contains more than 256
-        objects / blobs this will cowardly refuse to make the objects private.
-        This is to prevent extremely long runtime of this method.
-
-        :type recursive: bool
-        :param recursive: If True, this will make all blobs inside the bucket
-                          private as well.
-
-        :type future: bool
-        :param future: If True, this will make all objects created in the
-                       future private as well.
-
-        :type client: :class:`~google.cloud.storage.client.Client` or
-                      ``NoneType``
-        :param client: Optional. The client to use.  If not passed, falls back
-                       to the ``client`` stored on the current bucket.
-        """
-        self.acl.all().revoke_read()
-        self.acl.save(client=client)
-
-        if future:
-            doa = self.default_object_acl
-            if not doa.loaded:
-                doa.reload(client=client)
-            doa.all().revoke_read()
-            doa.save(client=client)
-
-        if recursive:
-            blobs = list(self.list_blobs(
-                projection='full',
-                max_results=self._MAX_OBJECTS_FOR_ITERATION + 1,
-                client=client))
-            if len(blobs) > self._MAX_OBJECTS_FOR_ITERATION:
-                message = (
-                    'Refusing to make private recursively with more than '
-                    '%d objects. If you actually want to make every object '
-                    'in this bucket private, please do it on the objects '
-                    'yourself.'
-                ) % (self._MAX_OBJECTS_FOR_ITERATION,)
-                raise ValueError(message)
-
-            for blob in blobs:
-                blob.acl.all().revoke_read()
                 blob.acl.save(client=client)
 
     def generate_upload_policy(

@@ -1,12 +1,13 @@
 from flask import Flask, render_template, request, url_for, redirect
 from werkzeug.utils import secure_filename
 import os
-from google.cloud import storage
+import google.cloud
+from google.cloud import storage, datastore, vision
 # for vision
-from google.cloud import vision
-from PIL import Image, ImageDraw
-import io
-import types
+# from google.cloud import vision
+#from PIL import Image, ImageDraw
+#import io
+#import types
 
 # import google.cloud
 # from google.cloud import storage
@@ -58,9 +59,19 @@ def upload_blob(file_stream,  destination_blob_name, content_type):
     # blob.upload_from_filename(source_file_name)
     blob.upload_from_string(file_stream, content_type=content_type)
 
-def cloud_vision():
-    #cloud vision newly uploaded file
-
+def cloud_vision(bucket_name, destination_blob_name):
+    # cloud vision newly uploaded file
+    # instantiate a vision annotator
+    vision_client = vision.ImageAnnotatorClient()
+    image = vision.types.Image()
+    # construct uri for gs storage
+    image_uri = 'gs://' + str(bucket_name) + '/' + str(destination_blob_name)
+    image.source.image_uri = image_uri
+    # response from annotator
+    response = vision_client.text_detection(image=image)
+    # get texts from response
+    texts = response.text_annotations
+    return(texts)
 
 '''
 #from google doc: https://cloud.google.com/python/getting-started/using-cloud-storage
@@ -126,7 +137,11 @@ def submitted_form_golf():
         # f.save(os.path.join(app.config['UPLOAD_FOLDER'],fname))
         # return redirect(url_for('submitted_form_golf', fname=fname))
         # all google stuff
+        # upload photo to bucket
         upload_blob(f.read(), fname, f.content_type)
+        # cloud vision
+        cloud_vision(bucket_name, destination_blob_name)
+
 
     return render_template(
         'submitted_form_golf.html',
