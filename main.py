@@ -140,7 +140,7 @@ def submitted_form_golf():
         # upload photo to bucket
         upload_blob(f.read(), fname, f.content_type)
         # cloud vision
-        cloud_vision(bucket_name, destination_blob_name)
+        texts = cloud_vision(bucket_name, destination_blob_name)
 
 
     return render_template(
@@ -150,7 +150,8 @@ def submitted_form_golf():
         site=site,
         file=f,
         filename=fname,
-        comments=comments)
+        comments=comments,
+        texts=texts)
 
 
 
