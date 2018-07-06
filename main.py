@@ -3,6 +3,7 @@ from werkzeug.utils import secure_filename
 import os
 import google.cloud
 from google.cloud import storage, datastore, vision
+import datetime
 # for vision
 # from google.cloud import vision
 #from PIL import Image, ImageDraw
@@ -44,7 +45,7 @@ def submitted_form():
         comments=comments)
 '''
 
-#upload to google function
+# upload to google function
 def upload_blob(file_stream,  destination_blob_name, content_type):
 
     """Uploads a file to the bucket."""
@@ -59,6 +60,7 @@ def upload_blob(file_stream,  destination_blob_name, content_type):
     # blob.upload_from_filename(source_file_name)
     blob.upload_from_string(file_stream, content_type=content_type)
 
+# vision function
 def cloud_vision(bucket_name, destination_blob_name):
     # cloud vision newly uploaded file
     # instantiate a vision annotator
@@ -72,6 +74,22 @@ def cloud_vision(bucket_name, destination_blob_name):
     # get texts from response
     texts = response.text_annotations
     return(texts)
+
+# datastore function
+def write_datastore(name,email,fname,image_uri):
+    # instantiate a client
+    ds = datastore.Client()
+    # create an entity (row?)
+    entity = datastore.Entity(key=ds.key('golfcard'))
+    # update entity with information
+    entity.update({
+        'name': name,
+        'email': email,
+        'filename': fname,
+        'imageuri': image_uri,
+        'timestamp': datetime.datetime.utcnow()
+    })
+    ds.put(entity)
 
 '''
 #from google doc: https://cloud.google.com/python/getting-started/using-cloud-storage
@@ -94,6 +112,18 @@ def upload_image_file(file):
 
     return public_url
 '''
+
+@app.route('/submits')
+def list_datastore():
+    ds = datastore.Client()
+    query = ds.query(kind='golfcard', order=('-timestamp',))
+
+    results = [
+        'Time: {timestamp} Addr: {user_ip}'.format(**x)
+        for x in query.fetch(limit=10)]
+    output = 'Last 10 visits:\n{}'.format('\n'.join(results))
+
+
 
 @app.route('/list')
 def list_blobs_go():
@@ -141,6 +171,12 @@ def submitted_form_golf():
         upload_blob(f.read(), fname, f.content_type)
         # cloud vision
         texts = cloud_vision(bucket_name, destination_blob_name)
+        # return image url
+        # example: https://storage.cloud.google.com/[BUCKET_NAME]/[OBJECT_NAME]
+        image_uri = 'https://storage.cloud.google.com/' + str(bucket_name) + '/' + str(destination_blob_name)
+        # write to datastore
+        write_datastore(name, email, fname, image_uri)
+
 
 
     return render_template(
@@ -151,6 +187,7 @@ def submitted_form_golf():
         file=f,
         filename=fname,
         comments=comments,
+        image_uri=image_uri,
         texts=texts)
 
 
