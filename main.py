@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, url_for, redirect
 from werkzeug.utils import secure_filename
 import os
 import google.cloud
-from google.cloud import storage, datastore, vision
+from google.cloud import storage, datastore, vision, pubsub
 import datetime
 # for vision
 # from google.cloud import vision
@@ -60,6 +60,18 @@ def upload_blob(file_stream,  destination_blob_name, content_type):
     # blob.upload_from_filename(source_file_name)
     blob.upload_from_string(file_stream, content_type=content_type)
 
+def PrettyView(texts):
+    result = []
+    result1 = []
+    for text in texts:
+        # print('\n"{}"'.format(text.description))
+        result.append(text.description)
+        vertices = (['({},{})'.format(vertex.x, vertex.y)
+                     for vertex in text.bounding_poly.vertices])
+        print('bounds: {}'.format(','.join(vertices)))
+        result1.append('bounds: {}'.format(','.join(vertices)))
+    return result
+
 # vision function
 def cloud_vision(bucket_name, destination_blob_name):
     # cloud vision newly uploaded file
@@ -73,7 +85,10 @@ def cloud_vision(bucket_name, destination_blob_name):
     response = vision_client.text_detection(image=image)
     # get texts from response
     texts = response.text_annotations
-    return(texts)
+    view1 = PrettyView(texts)
+
+    # print(view1)
+    return(view1)
 
 # datastore function
 def write_datastore(name,email,fname,image_uri):
@@ -91,37 +106,21 @@ def write_datastore(name,email,fname,image_uri):
     })
     ds.put(entity)
 
-'''
-#from google doc: https://cloud.google.com/python/getting-started/using-cloud-storage
-def upload_image_file(file):
-    """
-    Upload the user-uploaded file to Google Cloud Storage and retrieve its
-    publicly-accessible URL.
-    """
-    if not file:
-        return None
 
-    public_url = storage.upload_file(
-        file.read(),
-        file.filename,
-        file.content_type
-    )
-
-    current_app.logger.info(
-        "Uploaded file %s as %s.", file.filename, public_url)
-
-    return public_url
-'''
-
-@app.route('/submits')
+@app.route('/')
 def list_datastore():
     ds = datastore.Client()
     query = ds.query(kind='golfcard', order=('-timestamp',))
 
     results = [
-        'Time: {timestamp} Addr: {user_ip}'.format(**x)
+        'Time: {timestamp} Name: {name} Email: {email} File: {filename}'.format(**x)
         for x in query.fetch(limit=10)]
-    output = 'Last 10 visits:\n{}'.format('\n'.join(results))
+    output = 'Last 10 golfcards:\n{}'.format('\n'.join(results))
+
+    return render_template(
+        'index.html',
+        output=output,
+        results=results)
 
 
 
@@ -170,16 +169,14 @@ def submitted_form_golf():
         # upload photo to bucket
         upload_blob(f.read(), fname, f.content_type)
         # cloud vision
-        texts = cloud_vision(bucket_name, destination_blob_name)
+        results = cloud_vision(bucket_name, destination_blob_name)
         # return image url
         # example: https://storage.cloud.google.com/[BUCKET_NAME]/[OBJECT_NAME]
         image_uri = 'https://storage.cloud.google.com/' + str(bucket_name) + '/' + str(destination_blob_name)
         # write to datastore
         write_datastore(name, email, fname, image_uri)
 
-
-
-    return render_template(
+        return render_template(
         'submitted_form_golf.html',
         name=name,
         email=email,
@@ -188,7 +185,7 @@ def submitted_form_golf():
         filename=fname,
         comments=comments,
         image_uri=image_uri,
-        texts=texts)
+        results=results)
 
 
 
