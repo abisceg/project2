@@ -1,0 +1,24 @@
+<html>
+ <head>
+   <title>Welcome!</title>
+   <link rel="stylesheet" type="text/css" href="/static/style.css">
+ </head>
+ <body>
+   <div id="container">
+     <div class="pagetitle">
+       <h1>Welcome!</h1>
+     </div>
+     <div id="main">
+       <p>Checkout previous Submissions!</p>
+       <p>Here they are:</p>
+       <p>
+          <strong>Results</strong>: {{ouput}} <br>
+          <strong>ResultsRaw</strong>: {{results}} <br>
+          {% for element in results %}
+          <p>{{ element }} </p>
+          {% endfor %}
+       </p>
+     </div>
+   </div>
+ </body>
+</html>
